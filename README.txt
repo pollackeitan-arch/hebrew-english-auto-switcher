@@ -38,14 +38,16 @@ HOW IT WORKS
 - Works in Outlook and Word!
 
 
-HOW TO RUN
-----------
-Option 1: Double-click "run.bat" (normal mode, no logging)
+HOW TO INSTALL
+--------------
+Double-click "install.bat"
+That's it! The program will start running and will auto-start on every login.
 
-Option 2: Double-click "run_debug.bat" (debug mode, shows all actions)
+To uninstall: Double-click "uninstall.bat"
 
-Option 3: Start automatically with Windows
-          Double-click "add_to_startup.bat" ONE TIME
+For developers:
+- "run.bat" runs the Python script directly (normal mode)
+- "run_debug.bat" runs in debug mode (shows all actions)
 
 
 HOTKEYS
@@ -109,6 +111,14 @@ Take new screenshots of the buttons and replace:
   וללמד את התוכנה לזהות אותה בעתיד
 - קיצורים: מזהה עכשיו i'm, don't, can't וכו'
 - אות גדולה: מילה ראשונה בשורה שמתוקנת לאנגלית מקבלת אות גדולה
+
+
+התקנה
+-----
+לחצו פעמיים על "install.bat"
+זהו! התוכנה תתחיל לרוץ ותעלה אוטומטית בכל הפעלה של המחשב.
+
+להסרה: לחצו פעמיים על "uninstall.bat"
 
 
 איך זה עובד

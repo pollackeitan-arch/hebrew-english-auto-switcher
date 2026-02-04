@@ -9,4 +9,7 @@ echo WshShell.Run """%EXE_PATH%""", 0, False
 ) > "%STARTUP_FOLDER%\HebrewEnglishSwitcher.vbs"
 
 echo Added v3.1.63 to startup!
+echo Starting Auto Switcher...
+start "" "%EXE_PATH%"
+echo Done! Auto Switcher is running and will start automatically on login.
 pause

@@ -34,10 +34,13 @@ echo echo WshShell.Run """%%EXE_PATH%%""", 0, False
 echo ^) ^> "%%STARTUP_FOLDER%%\HebrewEnglishSwitcher.vbs"
 echo.
 echo echo Added v3.1.63 to startup!
+echo echo Starting Auto Switcher...
+echo start "" "%%EXE_PATH%%"
+echo echo Done! Auto Switcher is running and will start automatically on login.
 echo pause
-) > "dist\auto_switcher_v3.1.63\add_to_startup.bat"
+) > "dist\auto_switcher_v3.1.63\install.bat"
 
-copy "remove_from_startup.bat" "dist\auto_switcher_v3.1.63\" >nul
+copy "uninstall.bat" "dist\auto_switcher_v3.1.63\" >nul
 
 echo.
 echo Creating ZIP file...
