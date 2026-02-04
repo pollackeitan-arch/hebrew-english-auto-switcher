@@ -1,0 +1,10 @@
+# Ignored Words List
+# ==================
+# Add words that should NEVER be changed (one per line)
+# Works for both Hebrew and English words
+# Lines starting with # are ignored
+#
+# Examples:
+# פולק
+# puke
+# דרור

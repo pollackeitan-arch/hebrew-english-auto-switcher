@@ -1,0 +1,36 @@
+# Build artifacts
+build/
+dist/
+*.spec
+*.exe
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+switcher_log.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# First run marker
+.first_run_done
+
+# Claude Code
+.claude/
