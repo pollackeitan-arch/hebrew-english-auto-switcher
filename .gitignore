@@ -3,7 +3,6 @@ build/
 dist/
 *.spec
 *.exe
-*.zip
 
 # Python
 __pycache__/
@@ -31,6 +30,3 @@ Thumbs.db
 
 # First run marker
 .first_run_done
-
-# Claude Code
-.claude/

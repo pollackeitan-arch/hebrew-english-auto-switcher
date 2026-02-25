@@ -2,4 +2,4 @@
 # Format: keys,target_language
 # Example: akuo,hebrew (means when you type 'akuo', fix to Hebrew 'שלום')
 # Words are added automatically when you press Ctrl+` on unfixed words
-katuk,hebrew
+task,english

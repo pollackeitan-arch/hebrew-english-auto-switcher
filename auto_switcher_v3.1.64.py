@@ -1,5 +1,5 @@
 """
-Auto Switcher v3.1.63
+Auto Switcher v3.1.64
 ==================
 Hebrew-English keyboard switcher with auto-alignment.
 
@@ -300,7 +300,7 @@ class HebrewEnglishSwitcher:
         self.log_file = os.path.join(self.script_dir, 'switcher_log.txt')
         self.recent_words = []  # Buffer for last 10 words
         self.file_log("="*50)
-        self.file_log(f"STARTUP - v3.1.63")
+        self.file_log(f"STARTUP - v3.1.64")
         self.file_log(f"Initial tracked_language: {self.tracked_language}")
         self.file_log("="*50)
         
@@ -327,7 +327,7 @@ class HebrewEnglishSwitcher:
         
         if self.debug:
             print("="*60)
-            print("  Hebrew-English Auto Switcher v3.1.63")
+            print("  Hebrew-English Auto Switcher v3.1.64")
             print("="*60)
             print(f"  English: {'pyenchant dictionary' if self.english_dict else 'heuristics'}")
             hebrew_count = len(HEBREW_DICTIONARY) if HEBREW_DICTIONARY else len(HEBREW_WORDS)
@@ -337,9 +337,11 @@ class HebrewEnglishSwitcher:
             print("  ")
             print("  Hotkeys:")
             print("    Alt+Shift    - Toggle language (auto-detected)")
-            print("    Ctrl+`       - Undo fix (press twice, adds word to ignore)")
+            print("    Ctrl+`       - Undo fix / Force-fix unfixed word")
             print("    Ctrl+Alt+E   - Force English")
             print("    Ctrl+Alt+H   - Force Hebrew")
+            print("    Ctrl+Alt+A   - About")
+            print("    Ctrl+Alt+R   - Release stuck keys (Caps Lock / Ctrl / Shift)")
             print("    Ctrl+Alt+Q   - Quit")
             print("="*60 + "\n")
     
@@ -671,9 +673,11 @@ class HebrewEnglishSwitcher:
         """Set text direction based on language - only for first word of line"""
         if self.direction_set_for_line:
             return  # Already set direction for this line
-        
+
         self.log(f"  [DIRECTION] Setting to: {language}")
-        
+
+        ctrl_sent = False
+        shift_key = None
         try:
             # Send a space then backspace to "wake up" the editor (helps Outlook)
             # Only needed when no typing happened before this call
@@ -682,24 +686,39 @@ class HebrewEnglishSwitcher:
                 time.sleep(0.02)
                 keyboard.send('backspace')
                 time.sleep(0.02)
-            
+
             if language == 'english':
                 # Ctrl+Left Shift = LTR (English)
                 keyboard.press('ctrl')
-                keyboard.press('left shift')
-                keyboard.release('left shift')
-                keyboard.release('ctrl')
+                ctrl_sent = True
+                shift_key = 'left shift'
+                keyboard.press(shift_key)
+                keyboard.release(shift_key)
+                shift_key = None
                 self.log("  [DIRECTION] Sent Ctrl+Left Shift (LTR)")
             else:
                 # Ctrl+Right Shift = RTL (Hebrew)
                 keyboard.press('ctrl')
-                keyboard.press('right shift')
-                keyboard.release('right shift')
-                keyboard.release('ctrl')
+                ctrl_sent = True
+                shift_key = 'right shift'
+                keyboard.press(shift_key)
+                keyboard.release(shift_key)
+                shift_key = None
                 self.log("  [DIRECTION] Sent Ctrl+Right Shift (RTL)")
             self.direction_set_for_line = True
         except Exception as e:
             self.log(f"  [DIRECTION] Error: {e}")
+        finally:
+            if shift_key:
+                try:
+                    keyboard.release(shift_key)
+                except:
+                    pass
+            if ctrl_sent:
+                try:
+                    keyboard.release('ctrl')
+                except:
+                    pass
     
     def switch_keyboard(self, to_hebrew):
         """Switch the keyboard layout"""
@@ -748,9 +767,18 @@ class HebrewEnglishSwitcher:
             time.sleep(0.05)
             
             # Step 3: Type corrected word + space
+            # Normalize Caps Lock to OFF before writing - keyboard.write() can leave it
+            # stuck when BlockInput is active and GetKeyState returns stale state
+            caps_was_on = bool(ctypes.windll.user32.GetKeyState(0x14) & 0x0001)
+            if caps_was_on:
+                keyboard.send('caps lock')
+                time.sleep(0.02)
             for char in corrected:
                 keyboard.write(char)
             keyboard.send('space')
+            if caps_was_on:
+                keyboard.send('caps lock')
+                time.sleep(0.02)
             
             # Step 4: Set text direction (after typing, only for first word)
             # Must unblock input for Ctrl+Shift to reach the application
@@ -812,53 +840,65 @@ class HebrewEnglishSwitcher:
         """Handle Ctrl+` - undo last fix"""
         if not self.last_fix_info:
             return
-        
+        if self.is_fixing:
+            return
+
         original_word = self.last_fix_info['original_screen']
         original_lang = self.last_fix_info['original_lang']
         corrected_word = self.last_fix_info['corrected']
-        
-        # Add the original word to ignore list
-        self.add_to_ignore_list(original_word)
-        
-        # Wait for user to release hotkey, then release ctrl
-        time.sleep(0.3)
-        keyboard.release('ctrl')
-        time.sleep(0.1)
-        
-        # Erase the corrected word + space
-        delete_count = len(corrected_word) + 2  # +2 for space and extra
-        for _ in range(delete_count):
-            keyboard.send('backspace')
-        time.sleep(0.1)
-        
-        # Switch language back to original
-        self.switch_keyboard(to_hebrew=(original_lang == 'hebrew'))
-        self.tracked_language = original_lang
-        time.sleep(0.1)
-        
-        # Reset direction flag and set alignment (no wake_editor - typing will wake it)
-        self.direction_set_for_line = False
-        self.set_alignment(original_lang, wake_editor=False)
-        
-        # Type back the original word + space
-        for char in original_word:
-            keyboard.write(char)
-        keyboard.send('space')
-        
-        # Clear the fix info
-        self.last_fix_info = None
-        self.last_unfixed_word = None
-        self.log(f"  [UNDO] Restored '{original_word}'")
+
+        self.is_fixing = True
+        self.current_word_keys = ""
+
+        try:
+            # Add the original word to ignore list
+            self.add_to_ignore_list(original_word)
+
+            # Wait for user to release hotkey, then release ctrl
+            time.sleep(0.3)
+            keyboard.release('left ctrl')
+            keyboard.release('right ctrl')
+            time.sleep(0.1)
+
+            # Erase the corrected word + space
+            delete_count = len(corrected_word) + 1  # +1 for the space
+            for _ in range(delete_count):
+                keyboard.send('backspace')
+            time.sleep(0.1)
+
+            # Switch language back to original
+            self.switch_keyboard(to_hebrew=(original_lang == 'hebrew'))
+            self.tracked_language = original_lang
+            time.sleep(0.1)
+
+            # Reset direction flag and set alignment (no wake_editor - typing will wake it)
+            self.direction_set_for_line = False
+            self.set_alignment(original_lang, wake_editor=False)
+
+            # Type back the original word + space
+            for char in original_word:
+                keyboard.write(char)
+            keyboard.send('space')
+
+            # Clear the fix info
+            self.last_fix_info = None
+            self.last_unfixed_word = None
+            self.log(f"  [UNDO] Restored '{original_word}'")
+        finally:
+            self.is_fixing = False
+            self.current_word_keys = ""
     
     def handle_force_fix(self):
         """Handle Ctrl+` on unfixed word - force fix and learn"""
         if not self.last_unfixed_word:
             return
-        
+        if self.is_fixing:
+            return
+
         keys = self.last_unfixed_word
         screen_word = self.get_screen_word(keys)
         was_first_word = self.last_unfixed_was_first
-        
+
         # Determine target language (opposite of current)
         if self.tracked_language == 'english':
             target_lang = 'hebrew'
@@ -866,47 +906,54 @@ class HebrewEnglishSwitcher:
         else:
             target_lang = 'english'
             corrected = keys.lower()
-        
+
         self.log(f"  [FORCE FIX] '{screen_word}' -> '{corrected}' ({target_lang})")
         self.log(f"  [FORCE FIX] keys='{keys}' len={len(keys)} was_first={was_first_word}")
-        
+
         # Save to learned words
         self.save_learned_word(keys.lower(), target_lang)
-        
-        # Wait for user to release hotkey
-        time.sleep(0.3)
-        keyboard.release('ctrl')
-        time.sleep(0.1)
-        
-        # Erase the word + space (cursor is after space, so delete word length + 1 space)
-        # Add 1 extra for safety margin
-        delete_count = len(keys) + 2
-        self.log(f"  [FORCE FIX] Deleting {delete_count} characters (keys len={len(keys)})")
-        for _ in range(delete_count):
-            keyboard.send('backspace')
-            time.sleep(0.02)  # Small delay between backspaces
-        time.sleep(0.1)
-        
-        # Switch keyboard
-        self.switch_keyboard(to_hebrew=(target_lang == 'hebrew'))
-        self.tracked_language = target_lang
-        time.sleep(0.1)
-        
-        # Type corrected word + space
-        for char in corrected:
-            keyboard.write(char)
-        keyboard.send('space')
-        
-        # Set text direction only if this was the first word of line
-        if was_first_word:
-            time.sleep(0.05)
-            self.set_alignment(target_lang, wake_editor=True)
-            self.direction_set_for_line = True
-        
-        # Clear tracking
-        self.last_unfixed_word = None
-        self.last_unfixed_was_first = False
-        self.log(f"  [FORCE FIX] Done - word learned for future")
+
+        self.is_fixing = True
+        self.current_word_keys = ""
+
+        try:
+            # Wait for user to release hotkey
+            time.sleep(0.3)
+            keyboard.release('left ctrl')
+            keyboard.release('right ctrl')
+            time.sleep(0.1)
+
+            # Erase the word + space (cursor is after space, so delete word length + 1 space)
+            delete_count = len(screen_word) + 1
+            self.log(f"  [FORCE FIX] Deleting {delete_count} characters (keys len={len(keys)})")
+            for _ in range(delete_count):
+                keyboard.send('backspace')
+                time.sleep(0.02)  # Small delay between backspaces
+            time.sleep(0.1)
+
+            # Switch keyboard
+            self.switch_keyboard(to_hebrew=(target_lang == 'hebrew'))
+            self.tracked_language = target_lang
+            time.sleep(0.1)
+
+            # Type corrected word + space
+            for char in corrected:
+                keyboard.write(char)
+            keyboard.send('space')
+
+            # Set text direction only if this was the first word of line
+            if was_first_word:
+                time.sleep(0.05)
+                self.set_alignment(target_lang, wake_editor=True)
+                self.direction_set_for_line = True
+
+            # Clear tracking
+            self.last_unfixed_word = None
+            self.last_unfixed_was_first = False
+            self.log(f"  [FORCE FIX] Done - word learned for future")
+        finally:
+            self.is_fixing = False
+            self.current_word_keys = ""
     
     def save_learned_word(self, keys, target_lang):
         """Save a word to learned_words.txt"""
@@ -921,6 +968,26 @@ class HebrewEnglishSwitcher:
         except Exception as e:
             self.log(f"  [Error saving learned word: {e}]")
     
+    def release_all_keys(self):
+        """Release all potentially stuck modifier keys and normalize Caps Lock.
+        Hotkey: Ctrl+Alt+R  (if Ctrl is stuck, just press Alt+R)"""
+        for key_name in ['left ctrl', 'right ctrl', 'left shift', 'right shift', 'left alt', 'right alt']:
+            try:
+                keyboard.release(key_name)
+            except:
+                pass
+        # Turn off Caps Lock if it's currently on
+        try:
+            if ctypes.windll.user32.GetKeyState(0x14) & 0x0001:
+                keyboard.send('caps lock')
+        except:
+            pass
+        # Reset internal modifier state
+        self.ctrl_pressed = False
+        self.alt_pressed = False
+        self.shift_pressed = False
+        self.log("  [RELEASE ALL] Modifier keys released, Caps Lock normalized")
+
     def toggle_language(self):
         """Toggle the tracked language"""
         old_lang = self.tracked_language
@@ -1273,9 +1340,14 @@ class HebrewEnglishSwitcher:
         def set_hebrew():
             self.set_language('hebrew')
         
+        def show_about():
+            self.show_about_dialog()
+        
         keyboard.add_hotkey('ctrl+alt+q', quit_app)
         keyboard.add_hotkey('ctrl+alt+e', set_english)
         keyboard.add_hotkey('ctrl+alt+h', set_hebrew)
+        keyboard.add_hotkey('ctrl+alt+a', show_about)
+        keyboard.add_hotkey('ctrl+alt+r', self.release_all_keys)
         
         # Start power monitor in background thread
         session_thread = threading.Thread(target=self.start_session_monitor, daemon=True)
@@ -1294,6 +1366,34 @@ class HebrewEnglishSwitcher:
             listener.stop()
         
         mouse_listener.stop()
+    
+    def show_about_dialog(self):
+        """Show About dialog with copyright info"""
+        import ctypes
+        
+        about_text = """Hebrew-English Auto Keyboard Switcher
+Version 3.1.64
+
+Automatically fixes words typed in the wrong keyboard language.
+
+Created by Eitan Pollack
+
+Hotkeys:
+  Alt+Shift      - Toggle language
+  Ctrl+`         - Undo fix / Force-fix
+  Ctrl+Alt+E     - Force English
+  Ctrl+Alt+H     - Force Hebrew
+  Ctrl+Alt+A     - About
+  Ctrl+Alt+R     - Release stuck keys
+  Ctrl+Alt+Q     - Quit"""
+        
+        # Show message box (Windows)
+        ctypes.windll.user32.MessageBoxW(
+            0, 
+            about_text, 
+            "About Auto Switcher", 
+            0x40  # MB_ICONINFORMATION
+        )
 
 
 def open_demo_on_first_run():

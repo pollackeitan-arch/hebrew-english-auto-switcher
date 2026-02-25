@@ -1,0 +1,6 @@
+pynput
+pywin32
+keyboard
+pyenchant
+pyautogui
+opencv-python

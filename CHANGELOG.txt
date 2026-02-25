@@ -1,0 +1,70 @@
+================================================================================
+    Hebrew-English Auto Keyboard Switcher - CHANGELOG
+================================================================================
+
+v3.1.64 (Latest)
+----------------
+- Added About dialog (Ctrl+Alt+A) with copyright: Created by Eitan Pollack
+- Improved build script for clean distribution
+- Distribution creates AutoSwitcher.exe (no source code exposed)
+
+v3.1.63
+-------
+- Force-fix & learn: Press Ctrl+` on unfixed words to fix AND teach the program
+- New file: learned_words.txt stores words you teach
+- Force-fix respects first-word direction logic
+- Fixed deletion count bug in force-fix
+- Updated README and demo with new features
+
+v3.1.58
+-------
+- Auto-capitalize: First word of line corrected to English gets capital letter
+
+v3.1.57
+-------
+- Contractions support: i'm, don't, can't, won't, etc. now recognized
+- Apostrophe handling in word detection
+- Debug mode OFF by default (no logging for security)
+- Added run_debug.bat for easy troubleshooting
+
+v3.1.54 (Base Stable)
+---------------------
+- Auto-alignment: First word Hebrew → RTL, English → LTR
+- Works in Outlook (clicks alignment buttons) and Word (Ctrl+L/R)
+- Session monitor: Resets to English after wake from sleep
+- Undo with Ctrl+` (adds word to ignore list)
+- Window/mouse change clears buffer
+- Hebrew dictionary with 470,000 words
+
+v3.1.22 and earlier
+-------------------
+- Basic Hebrew-English auto-switching
+- Alt+Shift language toggle detection
+- Dictionary-based word recognition
+- ignore_words.txt support
+
+
+================================================================================
+HOTKEYS
+================================================================================
+Alt+Shift     - Toggle language (auto-detected)
+Ctrl+`        - Undo last fix OR Force-fix unfixed word
+Ctrl+Alt+E    - Force English mode
+Ctrl+Alt+H    - Force Hebrew mode
+Ctrl+Alt+A    - About dialog
+Ctrl+Alt+Q    - Quit
+
+
+================================================================================
+FILES
+================================================================================
+config.ini         - Settings (block delay)
+ignore_words.txt   - Words to never auto-correct
+learned_words.txt  - Words you taught via Ctrl+` force-fix
+hebrew_words.txt   - Hebrew dictionary (470,000 words)
+align_left.png     - Outlook align button image
+align_right.png    - Outlook align button image
+switcher_log.txt   - Debug log (only when using run_debug.bat)
+
+
+================================================================================

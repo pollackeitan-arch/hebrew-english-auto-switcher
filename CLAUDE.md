@@ -4,7 +4,7 @@
 Windows app that auto-detects words typed in the wrong keyboard layout (Hebrew vs English), fixes them in real-time, and auto-aligns text direction (RTL/LTR). Runs silently in the background.
 
 ## Project structure
-- `auto_switcher_v3.1.63.py` - Main source code (1340 lines, single file)
+- `auto_switcher_v3.1.64.py` - Main source code (1340 lines, single file)
 - `build_exe.bat` - Builds exe via PyInstaller, creates dist folder + zip
 - `install.bat` - For end users: registers auto-start + launches exe
 - `uninstall.bat` - Stops app + removes from startup
@@ -19,7 +19,7 @@ Windows app that auto-detects words typed in the wrong keyboard layout (Hebrew v
 Run `build_exe.bat` — it uses PyInstaller to create a standalone exe, assembles a dist folder with all needed files, and creates a zip for distribution.
 
 ## How to test changes
-1. Edit `auto_switcher_v3.1.63.py`
+1. Edit `auto_switcher_v3.1.64.py`
 2. Run `run.bat` (or `run_debug.bat` for verbose output)
 3. Test the behavior
 4. If good → commit, push, and optionally rebuild exe + create new release
