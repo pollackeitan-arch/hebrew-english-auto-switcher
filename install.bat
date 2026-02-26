@@ -1,12 +1,12 @@
 @echo off
 set "SCRIPT_DIR=%~dp0"
 set "EXE_PATH=%SCRIPT_DIR%auto_switcher_v3.1.64.exe"
-set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 
-(
-echo Set WshShell = CreateObject^("WScript.Shell"^)
-echo WshShell.Run """%EXE_PATH%""", 0, False
-) > "%STARTUP_FOLDER%\HebrewEnglishSwitcher.vbs"
+REM Remove old VBS startup method if present
+del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\HebrewEnglishSwitcher.vbs" 2>nul
+
+REM Add to registry Run key (reliable on all Windows versions)
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "HebrewEnglishSwitcher" /t REG_SZ /d "\"%EXE_PATH%\"" /f >nul
 
 echo Added v3.1.64 to startup!
 echo Starting Auto Switcher...
