@@ -8,6 +8,9 @@ del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\HebrewEnglishSwitch
 REM Add to registry Run key (reliable on all Windows versions)
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "HebrewEnglishSwitcher" /t REG_SZ /d "\"%EXE_PATH%\"" /f >nul
 
+REM Mark as approved in StartupApproved (required by Windows 11)
+powershell -Command "Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run' -Name 'HebrewEnglishSwitcher' -Value ([byte[]](2,0,0,0,0,0,0,0,0,0,0,0))" >nul 2>&1
+
 echo Added v3.1.64 to startup!
 echo Starting Auto Switcher...
 start "" "%EXE_PATH%"
