@@ -166,6 +166,11 @@ COMMON_SHORT_ENGLISH = {
     "you'd", "you'll", "we've", "we'd", "we'll", "they've", "they'd", "they'll",
 }
 
+# Single-character corrections: Hebrew mode key → correct English output
+SINGLE_CHAR_HEBREW_TO_ENGLISH = {
+    'i': 'I',  # ן → I
+}
+
 # Common short Hebrew words
 SHORT_HEBREW_WORDS = {
     'אם', 'אל', 'אז', 'או', 'אף', 'בו', 'בה', 'בי', 'בך', 'גם', 'גב', 'דם', 'דר', 'הם', 'הן',
@@ -466,9 +471,15 @@ class HebrewEnglishSwitcher:
         keys: physical keys pressed (always English letters)
         Returns: (corrected_word, target_language) or (None, None)
         """
+        # Handle single-character special cases (e.g. ן → I)
+        if len(keys) == 1:
+            if self.tracked_language == 'hebrew' and keys.lower() in SINGLE_CHAR_HEBREW_TO_ENGLISH:
+                return SINGLE_CHAR_HEBREW_TO_ENGLISH[keys.lower()], 'english'
+            return None, None
+
         if len(keys) < 2:
             return None, None
-        
+
         # Strip trailing punctuation
         punctuation = ''
         punctuation_chars = ',.!?;:'
@@ -502,7 +513,13 @@ class HebrewEnglishSwitcher:
         english_version = keys.lower()
         
         self.log(f"  Keys: '{keys}' | Screen: '{screen_word}' | Tracked: {self.tracked_language.upper()}" + (f" | Punct: '{punctuation}'" if punctuation else ""))
-        
+
+        # Don't fix if both interpretations are valid words - user knows what they typed
+        if self.is_valid_hebrew(hebrew_version) and self.is_valid_english(english_version):
+            self.log(f"  -> Both '{hebrew_version}' (Hebrew) and '{english_version}' (English) are valid - no fix")
+            self.log_word(keys, screen_word, "no_fix (both valid)")
+            return None, None
+
         # Skip if in ignored words
         if screen_word in IGNORED_WORDS or screen_word.lower() in IGNORED_WORDS:
             self.log(f"  -> Skipping (ignored word): '{screen_word}'")
@@ -1062,7 +1079,7 @@ class HebrewEnglishSwitcher:
             
             elif key == Key.enter:
                 # Process current word first if any
-                if len(self.current_word_keys) >= 2:
+                if len(self.current_word_keys) >= 1:
                     corrected, target = self.analyze_and_fix(self.current_word_keys)
                     
                     if corrected and target:
@@ -1107,7 +1124,7 @@ class HebrewEnglishSwitcher:
                 self.direction_set_for_line = False
             
             elif key in [Key.space, Key.tab]:
-                if len(self.current_word_keys) >= 2:
+                if len(self.current_word_keys) >= 1:
                     corrected, target = self.analyze_and_fix(self.current_word_keys)
                     
                     if corrected and target:
