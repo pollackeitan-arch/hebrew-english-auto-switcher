@@ -821,7 +821,8 @@ class HebrewEnglishSwitcher:
                 'original_screen': screen_word,
                 'corrected': corrected,
                 'original_lang': original_lang,
-                'target_lang': target_lang
+                'target_lang': target_lang,
+                'keys': self.current_word_keys,
             }
             
             # Step 7: Block delay
@@ -870,6 +871,21 @@ class HebrewEnglishSwitcher:
         try:
             # Add the original word to ignore list
             self.add_to_ignore_list(original_word)
+
+            # If this fix came from a learned word, remove it so it doesn't re-trigger
+            fix_keys = self.last_fix_info.get('keys', '').lower()
+            if fix_keys and fix_keys in LEARNED_WORDS:
+                del LEARNED_WORDS[fix_keys]
+                learned_file = os.path.join(self.script_dir, 'learned_words.txt')
+                try:
+                    with open(learned_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    with open(learned_file, 'w', encoding='utf-8') as f:
+                        for line in lines:
+                            if not line.strip().startswith(fix_keys + ','):
+                                f.write(line)
+                except Exception:
+                    pass
 
             # Wait for user to release hotkey, then release ctrl
             time.sleep(0.3)
@@ -975,6 +991,11 @@ class HebrewEnglishSwitcher:
     def save_learned_word(self, keys, target_lang):
         """Save a word to learned_words.txt"""
         global LEARNED_WORDS
+        # Strip trailing punctuation so keys never contain commas that corrupt the CSV
+        punctuation_chars = ',.!?;:'
+        keys = keys.rstrip(punctuation_chars)
+        if not keys:
+            return
         learned_file = os.path.join(self.script_dir, 'learned_words.txt')
         try:
             with open(learned_file, 'a', encoding='utf-8') as f:
