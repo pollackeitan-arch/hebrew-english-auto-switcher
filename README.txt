@@ -1,5 +1,5 @@
 ================================================================================
-    Hebrew-English Auto Keyboard Switcher v3.1.63
+    Hebrew-English Auto Keyboard Switcher v3.1.65
 ================================================================================
 
 ================================================================================
@@ -20,8 +20,15 @@ Example 2: You want to type "hello" but keyboard is on Hebrew.
            The program fixes it to "Hello" AND aligns left.
 
 
-WHAT'S NEW IN v3.1.63
+WHAT'S NEW IN v3.1.65
 ---------------------
+- READS YOUR REAL LANGUAGE: At startup and after sleep/unlock the program
+  now checks which keyboard language Windows is using, instead of
+  assuming English
+- Upgrading keeps your learned and ignored words
+
+EARLIER (v3.1.63)
+-----------------
 - FORCE-FIX & LEARN: Press Ctrl+` on unfixed words to fix them AND 
   teach the program to recognize them in the future
 - CONTRACTIONS: Now recognizes i'm, don't, can't, won't, etc.
@@ -32,8 +39,8 @@ WHAT'S NEW IN v3.1.63
 HOW IT WORKS
 ------------
 - Tracks language changes by detecting Alt+Shift
-- Starts assuming English (your login language)
-- Resets to English when waking from sleep
+- Reads the current keyboard language at startup
+- Re-reads it after waking from sleep or unlocking
 - After first word is typed/fixed, sets alignment automatically
 - Works in Outlook and Word!
 
@@ -105,7 +112,13 @@ Take new screenshots of the buttons and replace:
 וגם מיישרת את הטקסט אוטומטית לפי השפה.
 
 
-מה חדש ב-v3.1.63
+מה חדש ב-v3.1.65
+-----------------
+- קורא את השפה האמיתית: בהפעלה ואחרי שינה/נעילה התוכנה בודקת
+  באיזו שפה המקלדת נמצאת, במקום להניח אנגלית
+- שדרוג שומר את המילים שלימדתם ואת רשימת ההתעלמות
+
+קודם לכן (v3.1.63)
 -----------------
 - תיקון ולמידה: לחצו Ctrl+` על מילה שלא תוקנה כדי לתקן אותה 
   וללמד את התוכנה לזהות אותה בעתיד
@@ -124,7 +137,7 @@ Take new screenshots of the buttons and replace:
 איך זה עובד
 -----------
 - עוקב אחרי שינויי שפה על ידי זיהוי Alt+Shift
-- מתחיל בהנחה שהשפה היא אנגלית
+- קורא את שפת המקלדת הנוכחית בהפעלה ואחרי שינה/נעילה
 - אחרי המילה הראשונה בכל שורה - מיישר אוטומטית
 
 

@@ -2,11 +2,39 @@
     Hebrew-English Auto Keyboard Switcher - CHANGELOG
 ================================================================================
 
-v3.1.64 (Latest)
-----------------
+v3.1.65 (Latest) - Nov 7, 2026
+-------
+- No longer assumes English at startup / wake / unlock / logon: reads the
+  actual keyboard layout of the foreground window, then re-checks it on the
+  first key press (the lock screen may be in front when wake fires)
+- install.bat now installs to %LOCALAPPDATA%\HebrewSwitcher, stops and removes
+  any older version first, and no longer overwrites your learned_words.txt,
+  ignore_words.txt or config.ini on upgrade
+- uninstall.bat stops any version (auto_switcher_v*.exe)
+
+v3.1.64 - updates after initial release, still versioned 3.1.64
+-------
+Apr 28, 2026 (exe built Apr 29):
+- "Service started" toast in bottom-right on launch (auto-dismisses after 5 min)
+- Ignored words now checked BEFORE learned words, and against the Hebrew
+  form too, so a word in ignore_words.txt always wins
+- Undo (Ctrl+`) on a fix that came from a learned word also removes it from
+  learned_words.txt so it doesn't re-trigger
+- Trailing punctuation stripped before saving a learned word (commas were
+  corrupting learned_words.txt)
+
+Apr 20, 2026 (GitHub commit 75c9e27):
+- No fix when both the Hebrew and English readings are valid words (e.g. גם/do)
+- Single-char fix: 'ן' typed alone in Hebrew mode → 'I'
+
+Mar 1, 2026 (GitHub commits 1936ffd, d8e507e, f117878):
+- Startup now uses Task Scheduler (VBS / Registry Run were unreliable on
+  Windows 11 build 26200). install.bat / uninstall.bat clean up old methods.
+
+Feb 25, 2026 (initial v3.1.64 release):
 - Added About dialog (Ctrl+Alt+A) with copyright: Created by Eitan Pollack
 - Improved build script for clean distribution
-- Distribution creates AutoSwitcher.exe (no source code exposed)
+- Build output is auto_switcher_v3.1.64.exe (no source code exposed)
 
 v3.1.63
 -------

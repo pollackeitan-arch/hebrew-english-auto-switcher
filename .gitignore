@@ -30,3 +30,6 @@ Thumbs.db
 
 # First run marker
 .first_run_done
+
+# Release zips
+*.zip

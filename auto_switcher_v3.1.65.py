@@ -1,5 +1,5 @@
 """
-Auto Switcher v3.1.64
+Auto Switcher v3.1.65
 ==================
 Hebrew-English keyboard switcher with auto-alignment.
 
@@ -9,7 +9,7 @@ Features:
 - Manual override: Ctrl+Alt+E (English), Ctrl+Alt+H (Hebrew)
 - Skip numbers, common short words, ignore list
 - Full Hebrew dictionary (470,000 words)
-- Resets to English on wake from sleep
+- Reads the actual system language at startup and on wake/unlock (no longer assumes English)
 - AUTO ALIGNMENT: First word Hebrew → Align Right, English → Align Left
 
 Press Ctrl+Alt+Q to quit
@@ -268,9 +268,15 @@ class HebrewEnglishSwitcher:
         self.debug = debug
         self.pynput_controller = KeyboardController()
         
-        # Language tracking - start with English (login language)
+        # Language tracking - English until we read the real layout from
+        # Windows (done in run() at startup, and again on wake/unlock/logon)
         self.tracked_language = 'english'
-        
+        # When True, the next key press re-reads the actual system layout.
+        # Set at startup and after wake/unlock/logon, because at those moments
+        # the foreground window may be the lock screen rather than the window
+        # the user will actually type into.
+        self.pending_lang_sync = True
+
         # Current word being typed (physical keys)
         self.current_word_keys = ""
         
@@ -305,7 +311,7 @@ class HebrewEnglishSwitcher:
         self.log_file = os.path.join(self.script_dir, 'switcher_log.txt')
         self.recent_words = []  # Buffer for last 10 words
         self.file_log("="*50)
-        self.file_log(f"STARTUP - v3.1.64")
+        self.file_log(f"STARTUP - v3.1.65")
         self.file_log(f"Initial tracked_language: {self.tracked_language}")
         self.file_log("="*50)
         
@@ -332,7 +338,7 @@ class HebrewEnglishSwitcher:
         
         if self.debug:
             print("="*60)
-            print("  Hebrew-English Auto Switcher v3.1.64")
+            print("  Hebrew-English Auto Switcher v3.1.65")
             print("="*60)
             print(f"  English: {'pyenchant dictionary' if self.english_dict else 'heuristics'}")
             hebrew_count = len(HEBREW_DICTIONARY) if HEBREW_DICTIONARY else len(HEBREW_WORDS)
@@ -495,8 +501,19 @@ class HebrewEnglishSwitcher:
             self.log(f"  Skipping (contains numbers): '{keys}'")
             return None, None
         
-        # Check learned words first (user force-fixed these before)
+        # Compute versions up front so ignore check can see both layouts
         keys_lower = keys.lower()
+        hebrew_version = self.keys_to_hebrew(keys)
+        english_version = keys_lower
+
+        # Skip if in ignored words (checked BEFORE learned words so user-ignored
+        # words always win over previously-learned fixes)
+        if (keys in IGNORED_WORDS or keys_lower in IGNORED_WORDS
+                or hebrew_version in IGNORED_WORDS):
+            self.log(f"  -> Skipping (ignored word): keys='{keys}' hebrew='{hebrew_version}'")
+            return None, None
+
+        # Check learned words (user force-fixed these before)
         if keys_lower in LEARNED_WORDS:
             target_lang = LEARNED_WORDS[keys_lower]
             if target_lang == 'hebrew':
@@ -506,12 +523,10 @@ class HebrewEnglishSwitcher:
             self.log(f"  -> Learned word! Fixing to {target_lang}: '{corrected}'")
             self.log_word(keys, self.get_screen_word(keys), f"FIX (learned) to {target_lang}: {corrected}")
             return corrected + punctuation, target_lang
-        
+
         # Get what's on screen based on tracked language
         screen_word = self.get_screen_word(keys)
-        hebrew_version = self.keys_to_hebrew(keys)
-        english_version = keys.lower()
-        
+
         self.log(f"  Keys: '{keys}' | Screen: '{screen_word}' | Tracked: {self.tracked_language.upper()}" + (f" | Punct: '{punctuation}'" if punctuation else ""))
 
         # Don't fix if both interpretations are valid words - user knows what they typed
@@ -520,12 +535,9 @@ class HebrewEnglishSwitcher:
             self.log_word(keys, screen_word, "no_fix (both valid)")
             return None, None
 
-        # Skip if in ignored words
+        # Redundant safety net for screen_word (in case it's a localized variant)
         if screen_word in IGNORED_WORDS or screen_word.lower() in IGNORED_WORDS:
             self.log(f"  -> Skipping (ignored word): '{screen_word}'")
-            return None, None
-        if keys in IGNORED_WORDS or keys.lower() in IGNORED_WORDS:
-            self.log(f"  -> Skipping (ignored word): '{keys}'")
             return None, None
         
         if self.tracked_language == 'hebrew':
@@ -1036,6 +1048,60 @@ class HebrewEnglishSwitcher:
         self.log(f"  [Language toggled to: {self.tracked_language.upper()}]")
         self.file_log(f"LANG_TOGGLE: {old_lang} -> {self.tracked_language} (Alt+Shift)")
     
+    def read_system_language(self):
+        """Read the keyboard layout Windows is actually using right now.
+
+        The layout is per-thread, so we ask for the layout of the thread that
+        owns the foreground window (our own thread's layout is meaningless for
+        a background app). Returns 'hebrew', 'english', or None if it can't be
+        determined (no foreground window, or some other language is active).
+        """
+        try:
+            user32 = ctypes.windll.user32
+            user32.GetForegroundWindow.restype = ctypes.c_void_p
+            user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+            user32.GetWindowThreadProcessId.restype = ctypes.c_ulong
+            user32.GetKeyboardLayout.argtypes = [ctypes.c_ulong]
+            user32.GetKeyboardLayout.restype = ctypes.c_void_p
+
+            hwnd = user32.GetForegroundWindow()
+            if not hwnd:
+                return None
+            thread_id = user32.GetWindowThreadProcessId(hwnd, None)
+            if not thread_id:
+                return None
+            hkl = user32.GetKeyboardLayout(thread_id)
+            if not hkl:
+                return None
+            primary_lang = hkl & 0x3FF  # low word = LANGID, low 10 bits = primary language
+            if primary_lang == (self.LANG_HEBREW & 0x3FF):
+                return 'hebrew'
+            if primary_lang == (self.LANG_ENGLISH & 0x3FF):
+                return 'english'
+            self.file_log(f"LANG_READ: unrecognized layout hkl=0x{hkl:X}")
+            return None
+        except Exception as e:
+            self.file_log(f"LANG_READ: error {e}")
+            return None
+
+    def sync_language_from_system(self, reason):
+        """Set tracked_language from the real system layout. Returns True on success."""
+        lang = self.read_system_language()
+        if lang is None:
+            self.file_log(f"LANG_SYNC ({reason}): could not read system layout, keeping {self.tracked_language}")
+            return False
+        if lang != self.tracked_language:
+            self.log(f"  [{reason}: system language is {lang.upper()} - tracking updated]")
+        self.file_log(f"LANG_SYNC ({reason}): {self.tracked_language} -> {lang}")
+        self.tracked_language = lang
+        return True
+
+    def request_language_sync(self, reason):
+        """Called on wake/unlock/logon: clear state and re-read the system language."""
+        self.current_word_keys = ""
+        self.pending_lang_sync = True  # confirm again on the first key press
+        self.sync_language_from_system(reason)
+
     def set_language(self, lang):
         """Manually set the tracked language"""
         old_lang = self.tracked_language
@@ -1046,8 +1112,17 @@ class HebrewEnglishSwitcher:
     def on_key_press(self, key):
         if self.is_fixing:
             return
-        
+
         try:
+            # First key after startup/wake/unlock: read the real system language.
+            # Done here (not only at the event) because the foreground window is
+            # now the one the user is typing into, not the lock screen.
+            # Runs before Alt+Shift handling, so a toggle as the first keystroke
+            # still flips from the correct starting language.
+            if self.pending_lang_sync:
+                self.pending_lang_sync = False
+                self.sync_language_from_system("First key after start/wake")
+
             # Check if window changed - clear buffer and reset first word tracking
             current_window = win32gui.GetForegroundWindow()
             if current_window != self.last_active_window:
@@ -1265,25 +1340,22 @@ class HebrewEnglishSwitcher:
                 if msg == WM_WTSSESSION_CHANGE:
                     self.file_log(f"SESSION_MONITOR: WM_WTSSESSION_CHANGE received, wparam={wparam}")
                     if wparam == WTS_SESSION_UNLOCK:
-                        self.log("  [Session UNLOCK detected - resetting to ENGLISH]")
-                        self.file_log(f"SESSION_UNLOCK: resetting tracked_language to english (was {self.tracked_language})")
-                        self.tracked_language = 'english'
-                        self.current_word_keys = ""
+                        self.log("  [Session UNLOCK detected - reading system language]")
+                        self.file_log(f"SESSION_UNLOCK: re-reading system language (was {self.tracked_language})")
+                        self.request_language_sync("Session unlock")
                     elif wparam == WTS_SESSION_LOGON:
-                        self.log("  [Session LOGON detected - resetting to ENGLISH]")
-                        self.file_log(f"SESSION_LOGON: resetting tracked_language to english (was {self.tracked_language})")
-                        self.tracked_language = 'english'
-                        self.current_word_keys = ""
+                        self.log("  [Session LOGON detected - reading system language]")
+                        self.file_log(f"SESSION_LOGON: re-reading system language (was {self.tracked_language})")
+                        self.request_language_sync("Session logon")
                     elif wparam == WTS_SESSION_LOCK:
                         self.file_log(f"SESSION_LOCK: screen locked")
                 
                 elif msg == WM_POWERBROADCAST:
                     self.file_log(f"SESSION_MONITOR: WM_POWERBROADCAST received, wparam={wparam}")
                     if wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND):
-                        self.log("  [Wake from sleep detected - resetting to ENGLISH]")
-                        self.file_log(f"WAKE_FROM_SLEEP: resetting tracked_language to english (was {self.tracked_language})")
-                        self.tracked_language = 'english'
-                        self.current_word_keys = ""
+                        self.log("  [Wake from sleep detected - reading system language]")
+                        self.file_log(f"WAKE_FROM_SLEEP: re-reading system language (was {self.tracked_language})")
+                        self.request_language_sync("Wake from sleep")
             except Exception as e:
                 self.file_log(f"SESSION_MONITOR: Error in wnd_proc: {e}")
             
@@ -1340,7 +1412,7 @@ class HebrewEnglishSwitcher:
             user32.DestroyWindow(hwnd)
             return
         
-        self.log("  [Session monitor started - will reset to English on unlock/logon]")
+        self.log("  [Session monitor started - will re-read system language on wake/unlock/logon]")
         self.file_log("SESSION_MONITOR: Started successfully, listening for unlock/logon events")
         
         # Message loop
@@ -1386,11 +1458,18 @@ class HebrewEnglishSwitcher:
         keyboard.add_hotkey('ctrl+alt+h', set_hebrew)
         keyboard.add_hotkey('ctrl+alt+a', show_about)
         keyboard.add_hotkey('ctrl+alt+r', self.release_all_keys)
-        
+
+        # Read the actual system language at startup instead of assuming English
+        # (re-checked on the first key press via pending_lang_sync)
+        self.sync_language_from_system("Startup")
+
         # Start power monitor in background thread
         session_thread = threading.Thread(target=self.start_session_monitor, daemon=True)
         session_thread.start()
-        
+
+        # Show "service started" notification (auto-dismisses after 5 min)
+        self.show_startup_notification()
+
         # Start mouse listener in background
         mouse_listener = pynput_mouse.Listener(on_click=self.on_mouse_click)
         mouse_listener.start()
@@ -1410,7 +1489,7 @@ class HebrewEnglishSwitcher:
         import ctypes
         
         about_text = """Hebrew-English Auto Keyboard Switcher
-Version 3.1.64
+Version 3.1.65
 
 Automatically fixes words typed in the wrong keyboard language.
 
@@ -1427,11 +1506,118 @@ Hotkeys:
         
         # Show message box (Windows)
         ctypes.windll.user32.MessageBoxW(
-            0, 
-            about_text, 
-            "About Auto Switcher", 
+            0,
+            about_text,
+            "About Auto Switcher",
             0x40  # MB_ICONINFORMATION
         )
+
+    def show_startup_notification(self):
+        """Show a non-blocking 'service started' toast in the bottom-right.
+
+        - Always-on-top, borderless, never steals focus.
+        - Click anywhere or press the X to dismiss.
+        - Auto-dismisses after 5 minutes.
+        Runs tkinter in its own daemon thread so it doesn't block the listeners.
+        """
+        def _toast():
+            try:
+                import tkinter as tk
+            except Exception as e:
+                self.log(f"  [startup_notification] tkinter unavailable: {e}")
+                return
+
+            try:
+                root = tk.Tk()
+                root.withdraw()  # hide while we set things up
+                root.title("Auto Switcher")
+                root.overrideredirect(True)              # no title bar / borders
+                root.attributes('-topmost', True)        # stay on top
+                root.attributes('-alpha', 0.95)          # slightly translucent
+                # Don't take focus from whatever the user is typing into
+                try:
+                    root.attributes('-toolwindow', True)
+                except Exception:
+                    pass
+
+                # Colors
+                bg = '#1F7A1F'         # green
+                bg_hover = '#155215'   # darker green for X hover
+                fg = '#FFFFFF'
+
+                # Layout
+                w, h = 340, 92
+                screen_w = root.winfo_screenwidth()
+                screen_h = root.winfo_screenheight()
+                x = screen_w - w - 24
+                y = screen_h - h - 80   # leave room for taskbar
+                root.geometry(f'{w}x{h}+{x}+{y}')
+                root.configure(bg=bg)
+
+                # Border frame
+                outer = tk.Frame(root, bg='#0E4A0E', bd=0)
+                outer.pack(fill='both', expand=True, padx=1, pady=1)
+                inner = tk.Frame(outer, bg=bg)
+                inner.pack(fill='both', expand=True)
+
+                title_lbl = tk.Label(
+                    inner,
+                    text='✓  Hebrew-English Auto Switcher',
+                    bg=bg, fg=fg,
+                    font=('Segoe UI', 10, 'bold'),
+                    anchor='w'
+                )
+                title_lbl.pack(fill='x', padx=12, pady=(10, 2))
+
+                msg_lbl = tk.Label(
+                    inner,
+                    text='Service started and running.\nClick to dismiss · auto-closes in 5 min',
+                    bg=bg, fg=fg,
+                    font=('Segoe UI', 9),
+                    anchor='w', justify='left'
+                )
+                msg_lbl.pack(fill='x', padx=12, pady=(0, 10))
+
+                # Close (X) button — top right corner
+                close_btn = tk.Label(
+                    inner, text='✕',
+                    bg=bg, fg=fg,
+                    font=('Segoe UI', 12, 'bold'),
+                    cursor='hand2', padx=8, pady=2
+                )
+                close_btn.place(relx=1.0, rely=0.0, anchor='ne', x=-4, y=4)
+
+                dismissed = {'flag': False}
+
+                def dismiss(_event=None):
+                    if dismissed['flag']:
+                        return
+                    dismissed['flag'] = True
+                    try:
+                        root.destroy()
+                    except Exception:
+                        pass
+
+                close_btn.bind('<Button-1>', dismiss)
+                close_btn.bind('<Enter>', lambda e: close_btn.configure(bg=bg_hover))
+                close_btn.bind('<Leave>', lambda e: close_btn.configure(bg=bg))
+                # Click anywhere on the body dismisses
+                for widget in (inner, title_lbl, msg_lbl, outer):
+                    widget.bind('<Button-1>', dismiss)
+
+                # Auto-dismiss after 5 minutes
+                root.after(5 * 60 * 1000, dismiss)
+
+                root.deiconify()  # show now
+                root.mainloop()
+            except Exception as e:
+                # Never let a UI hiccup take down the keyboard service
+                try:
+                    self.log(f"  [startup_notification] Error: {e}")
+                except Exception:
+                    pass
+
+        threading.Thread(target=_toast, daemon=True, name='StartupToast').start()
 
 
 def open_demo_on_first_run():
