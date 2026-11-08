@@ -3,5 +3,5 @@ echo Installing dependencies...
 pip install pynput pywin32 keyboard pyenchant pyautogui opencv-python
 echo.
 echo Starting Auto Switcher...
-python auto_switcher_v3.1.65.py
+python auto_switcher_v3.1.66.py
 pause

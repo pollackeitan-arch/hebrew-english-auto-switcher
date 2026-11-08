@@ -1,5 +1,5 @@
 """
-Auto Switcher v3.1.65
+Auto Switcher v3.1.66
 ==================
 Hebrew-English keyboard switcher with auto-alignment.
 
@@ -311,7 +311,7 @@ class HebrewEnglishSwitcher:
         self.log_file = os.path.join(self.script_dir, 'switcher_log.txt')
         self.recent_words = []  # Buffer for last 10 words
         self.file_log("="*50)
-        self.file_log(f"STARTUP - v3.1.65")
+        self.file_log(f"STARTUP - v3.1.66")
         self.file_log(f"Initial tracked_language: {self.tracked_language}")
         self.file_log("="*50)
         
@@ -338,7 +338,7 @@ class HebrewEnglishSwitcher:
         
         if self.debug:
             print("="*60)
-            print("  Hebrew-English Auto Switcher v3.1.65")
+            print("  Hebrew-English Auto Switcher v3.1.66")
             print("="*60)
             print(f"  English: {'pyenchant dictionary' if self.english_dict else 'heuristics'}")
             hebrew_count = len(HEBREW_DICTIONARY) if HEBREW_DICTIONARY else len(HEBREW_WORDS)
@@ -360,9 +360,13 @@ class HebrewEnglishSwitcher:
         if self.debug:
             print(msg)
     
-    def file_log(self, msg):
-        """Write to log file with timestamp (only in debug mode)"""
-        if not self.debug:
+    def file_log(self, msg, always=False):
+        """Write to log file with timestamp.
+
+        Only in debug mode, unless always=True. always=True is used just for
+        wake/display/language-sync events, which never contain typed text.
+        """
+        if not self.debug and not always:
             return
         from datetime import datetime
         try:
@@ -1088,11 +1092,11 @@ class HebrewEnglishSwitcher:
         """Set tracked_language from the real system layout. Returns True on success."""
         lang = self.read_system_language()
         if lang is None:
-            self.file_log(f"LANG_SYNC ({reason}): could not read system layout, keeping {self.tracked_language}")
+            self.file_log(f"LANG_SYNC ({reason}): could not read system layout, keeping {self.tracked_language}", always=True)
             return False
         if lang != self.tracked_language:
             self.log(f"  [{reason}: system language is {lang.upper()} - tracking updated]")
-        self.file_log(f"LANG_SYNC ({reason}): {self.tracked_language} -> {lang}")
+        self.file_log(f"LANG_SYNC ({reason}): {self.tracked_language} -> {lang}", always=True)
         self.tracked_language = lang
         return True
 
@@ -1308,7 +1312,25 @@ class HebrewEnglishSwitcher:
         # Power events
         PBT_APMRESUMEAUTOMATIC = 0x0012
         PBT_APMRESUMESUSPEND = 0x0007
-        
+        PBT_POWERSETTINGCHANGE = 0x8013
+
+        # Display on/off. On Modern Standby PCs (S0 low-power idle, most new
+        # laptops) waking up usually does NOT send PBT_APMRESUME* to apps -
+        # the only reliable signal is the console display turning back on.
+        class GUID(Structure):
+            _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
+                        ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+
+        class POWERBROADCAST_SETTING(Structure):
+            _fields_ = [("PowerSetting", GUID), ("DataLength", wintypes.DWORD),
+                        ("Data", wintypes.DWORD)]
+
+        # {6FE69556-704A-47A0-8F24-C28D936FDA47}
+        GUID_CONSOLE_DISPLAY_STATE = GUID(0x6FE69556, 0x704A, 0x47A0,
+                                          (ctypes.c_ubyte * 8)(0x8F, 0x24, 0xC2, 0x8D, 0x93, 0x6F, 0xDA, 0x47))
+        DISPLAY_OFF, DISPLAY_ON = 0, 1  # 2 = dimmed
+        display_state = {'last': None}
+
         # Notification flags
         NOTIFY_FOR_THIS_SESSION = 0
         
@@ -1351,11 +1373,22 @@ class HebrewEnglishSwitcher:
                         self.file_log(f"SESSION_LOCK: screen locked")
                 
                 elif msg == WM_POWERBROADCAST:
-                    self.file_log(f"SESSION_MONITOR: WM_POWERBROADCAST received, wparam={wparam}")
                     if wparam in (PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND):
                         self.log("  [Wake from sleep detected - reading system language]")
-                        self.file_log(f"WAKE_FROM_SLEEP: re-reading system language (was {self.tracked_language})")
+                        self.file_log(f"WAKE_FROM_SLEEP: re-reading system language (was {self.tracked_language})", always=True)
                         self.request_language_sync("Wake from sleep")
+                    elif wparam == PBT_POWERSETTINGCHANGE and lparam:
+                        setting = POWERBROADCAST_SETTING.from_address(lparam)
+                        if bytes(setting.PowerSetting) == bytes(GUID_CONSOLE_DISPLAY_STATE):
+                            state = setting.Data & 0xFF
+                            previous = display_state['last']
+                            display_state['last'] = state
+                            self.file_log(f"DISPLAY_STATE: {previous} -> {state}", always=True)
+                            # Only a real off -> on is a wake. Dimmed -> on happens
+                            # while typing and must not clear the current word.
+                            if previous == DISPLAY_OFF and state == DISPLAY_ON:
+                                self.log("  [Display turned on (wake) - reading system language]")
+                                self.request_language_sync("Display on (wake)")
             except Exception as e:
                 self.file_log(f"SESSION_MONITOR: Error in wnd_proc: {e}")
             
@@ -1411,9 +1444,20 @@ class HebrewEnglishSwitcher:
             self.file_log(f"SESSION_MONITOR: FAILED to register session notifications, error={error}")
             user32.DestroyWindow(hwnd)
             return
-        
+
+        # Register for display on/off (the wake signal on Modern Standby PCs).
+        # Windows immediately sends the current state, which seeds display_state.
+        user32.RegisterPowerSettingNotification.argtypes = [wintypes.HANDLE, ctypes.POINTER(GUID), wintypes.DWORD]
+        user32.RegisterPowerSettingNotification.restype = c_void_p
+        user32.UnregisterPowerSettingNotification.argtypes = [c_void_p]
+        DEVICE_NOTIFY_WINDOW_HANDLE = 0
+        display_notify = user32.RegisterPowerSettingNotification(
+            hwnd, ctypes.byref(GUID_CONSOLE_DISPLAY_STATE), DEVICE_NOTIFY_WINDOW_HANDLE)
+        if not display_notify:
+            self.file_log(f"SESSION_MONITOR: could not register for display on/off, error={kernel32.GetLastError()}", always=True)
+
         self.log("  [Session monitor started - will re-read system language on wake/unlock/logon]")
-        self.file_log("SESSION_MONITOR: Started successfully, listening for unlock/logon events")
+        self.file_log("SESSION_MONITOR: Started, listening for wake/display-on/unlock/logon", always=True)
         
         # Message loop
         msg = wintypes.MSG()
@@ -1426,6 +1470,8 @@ class HebrewEnglishSwitcher:
                 time.sleep(0.1)
         
         # Cleanup
+        if display_notify:
+            user32.UnregisterPowerSettingNotification(display_notify)
         wtsapi32.WTSUnRegisterSessionNotification(hwnd)
         user32.DestroyWindow(hwnd)
     
@@ -1489,7 +1535,7 @@ class HebrewEnglishSwitcher:
         import ctypes
         
         about_text = """Hebrew-English Auto Keyboard Switcher
-Version 3.1.65
+Version 3.1.66
 
 Automatically fixes words typed in the wrong keyboard language.
 

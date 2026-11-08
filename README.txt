@@ -1,5 +1,5 @@
 ================================================================================
-    Hebrew-English Auto Keyboard Switcher v3.1.65
+    Hebrew-English Auto Keyboard Switcher v3.1.66
 ================================================================================
 
 ================================================================================
@@ -20,9 +20,9 @@ Example 2: You want to type "hello" but keyboard is on Hebrew.
            The program fixes it to "Hello" AND aligns left.
 
 
-WHAT'S NEW IN v3.1.65
+WHAT'S NEW IN v3.1.66
 ---------------------
-- READS YOUR REAL LANGUAGE: At startup and after sleep/unlock the program
+- READS YOUR REAL LANGUAGE: At startup and after sleep/screen-on/unlock the program
   now checks which keyboard language Windows is using, instead of
   assuming English
 - Upgrading keeps your learned and ignored words
@@ -112,7 +112,7 @@ Take new screenshots of the buttons and replace:
 וגם מיישרת את הטקסט אוטומטית לפי השפה.
 
 
-מה חדש ב-v3.1.65
+מה חדש ב-v3.1.66
 -----------------
 - קורא את השפה האמיתית: בהפעלה ואחרי שינה/נעילה התוכנה בודקת
   באיזו שפה המקלדת נמצאת, במקום להניח אנגלית

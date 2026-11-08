@@ -8,7 +8,7 @@ REM Check if running from exe or script
 if exist "%SCRIPT_DIR%AutoSwitcher.exe" (
     set "TARGET=%SCRIPT_DIR%AutoSwitcher.exe"
 ) else (
-    set "TARGET=%SCRIPT_DIR%auto_switcher_v3.1.65.py"
+    set "TARGET=%SCRIPT_DIR%auto_switcher_v3.1.66.py"
 )
 
 (

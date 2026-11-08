@@ -16,7 +16,7 @@ if exist "*.spec" del /q "*.spec"
 
 echo.
 echo Building executable...
-pyinstaller --onefile --noconsole --name AutoSwitcher auto_switcher_v3.1.65.py
+pyinstaller --onefile --noconsole --name AutoSwitcher auto_switcher_v3.1.66.py
 
 if not exist "dist\AutoSwitcher.exe" (
     echo.

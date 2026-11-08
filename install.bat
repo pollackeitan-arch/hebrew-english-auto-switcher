@@ -1,6 +1,6 @@
 @echo off
 set "SCRIPT_DIR=%~dp0"
-set "EXE_NAME=auto_switcher_v3.1.65.exe"
+set "EXE_NAME=auto_switcher_v3.1.66.exe"
 set "EXE_SRC=%SCRIPT_DIR%%EXE_NAME%"
 set "INSTALL_DIR=%LOCALAPPDATA%\HebrewSwitcher"
 set "EXE_PATH=%INSTALL_DIR%\%EXE_NAME%"
@@ -35,7 +35,7 @@ if not exist "%INSTALL_DIR%\learned_words.txt" if exist "%SCRIPT_DIR%learned_wor
 REM Use Task Scheduler for startup (most reliable on Windows 11)
 powershell -Command "Unregister-ScheduledTask -TaskName 'HebrewEnglishSwitcher' -Confirm:$false -ErrorAction SilentlyContinue; $a = New-ScheduledTaskAction -Execute '%EXE_PATH%'; $t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME; $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero); $p = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited; Register-ScheduledTask -TaskName 'HebrewEnglishSwitcher' -Action $a -Trigger $t -Settings $s -Principal $p -Description 'Hebrew-English Auto Keyboard Switcher' | Out-Null"
 
-echo Added v3.1.65 to startup!
+echo Added v3.1.66 to startup!
 echo Starting Auto Switcher...
 start "" "%EXE_PATH%"
 echo Done! Auto Switcher is running and will start automatically on login.
